@@ -1,4 +1,4 @@
-// משימת הצלת המשולשים - עמוד המשחק הראשי
+// משימת הצלת המשולשים - עמוד המשחק הראשי עם התקדמות סיפורית
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6,6 +6,8 @@ import TriangleVisualizer from '@/components/TriangleVisualizer';
 import AnswerButtons from '@/components/AnswerButtons';
 import FeedbackPanel from '@/components/FeedbackPanel';
 import ProgressBar from '@/components/ProgressBar';
+import RescueProgressIndicator from '@/components/RescueProgressIndicator';
+import NarrativeMessage from '@/components/NarrativeMessage';
 import { Button } from '@/components/ui/button';
 import type { AngleType, SideType, GameState, GameLevel } from '@/types/game';
 import {
@@ -20,11 +22,15 @@ import {
   getTotalLevels,
   isLastLevel,
 } from '@/lib/gameData';
+import {
+  getRandomEncouragement,
+  getRandomIncorrectMessage,
+} from '@/lib/narrativeData';
 
 type GamePhase = 'intro' | 'playing' | 'feedback' | 'gameover';
 
 /**
- * עמוד המשחק הראשי
+ * עמוד המשחק הראשי עם מערכת התקדמות סיפורית
  */
 export default function Game() {
   const [gamePhase, setGamePhase] = useState<GamePhase>('intro');
@@ -40,6 +46,9 @@ export default function Game() {
   const [incorrectAttempts, setIncorrectAttempts] = useState(0);
   const [startTime, setStartTime] = useState<number>(0);
   const [endTime, setEndTime] = useState<number | undefined>();
+  const [narrativeMessage, setNarrativeMessage] = useState<string>('');
+  const [showNarrativeMessage, setShowNarrativeMessage] = useState(false);
+  const [narrativeMessageType, setNarrativeMessageType] = useState<'success' | 'progress' | 'completion'>('progress');
 
   // אתחול רמות
   useEffect(() => {
@@ -49,6 +58,18 @@ export default function Game() {
 
   const currentLevel = levels[currentLevelIndex];
   const totalLevels = getTotalLevels();
+
+  // הצגת הודעה נרטיבית לזמן קצוב
+  const showNarrative = (message: string, type: 'success' | 'progress' | 'completion' = 'progress') => {
+    setNarrativeMessage(message);
+    setNarrativeMessageType(type);
+    setShowNarrativeMessage(true);
+    
+    // הסתרת ההודעה אחרי 3 שניות
+    setTimeout(() => {
+      setShowNarrativeMessage(false);
+    }, 3000);
+  };
 
   // טיפול בבחירת תשובה
   const handleSubmitAnswer = () => {
@@ -63,7 +84,15 @@ export default function Game() {
     );
 
     if (correct) {
-      // תשובה נכונה
+      // תשובה נכונה - התקדמות בהצלה
+      const newCorrectAnswers = correctAnswers + 1;
+      setCorrectAnswers(newCorrectAnswers);
+      
+      // הצגת הודעה נרטיבית
+      const encouragement = getRandomEncouragement();
+      showNarrative(encouragement, 'success');
+      
+      // הצגת משוב חיובי
       setFeedbackType('correct');
       setFeedbackTitle('✓ כל הכבוד!');
       setFeedbackMessage(
@@ -72,11 +101,15 @@ export default function Game() {
       setFeedbackExplanation(
         'סיווג נכון! אתה מוכן להמשיך לשלב הבא.'
       );
-      setCorrectAnswers(correctAnswers + 1);
       setGamePhase('feedback');
     } else {
-      // תשובה שגויה
+      // תשובה שגויה - אין התקדמות בהצלה
       setIncorrectAttempts(incorrectAttempts + 1);
+      
+      // הצגת הודעה שגיאה
+      const incorrectMessage = getRandomIncorrectMessage();
+      showNarrative(incorrectMessage, 'progress');
+      
       setFeedbackType('incorrect');
       setFeedbackTitle('✗ לא בדיוק...');
       
@@ -137,6 +170,7 @@ export default function Game() {
   // חישוב זמן וסטטיסטיקות
   const totalTime = endTime ? Math.floor((endTime - startTime) / 1000) : 0;
   const successRate = totalLevels > 0 ? Math.round((correctAnswers / totalLevels) * 100) : 0;
+  const isGameCompleted = correctAnswers === totalLevels;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
@@ -176,6 +210,7 @@ export default function Game() {
                   <li>✓ סווגו כל משולש לפי <span className="font-semibold">צלעות</span> (שונה, שווה שוקיים, שווה צלעות)</li>
                   <li>✓ קבלו משוב מיידי וחינוכי</li>
                   <li>✓ התקדמו דרך {totalLevels} שלבים</li>
+                  <li>✓ עקבו אחר התקדמות הצלת המשימה</li>
                 </ul>
               </div>
 
@@ -197,7 +232,21 @@ export default function Game() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
-              {/* סרגל התקדמות */}
+              {/* אינדיקטור התקדמות הצלה */}
+              <RescueProgressIndicator
+                correctAnswers={correctAnswers}
+                totalLevels={totalLevels}
+                isCompleted={isGameCompleted}
+              />
+
+              {/* הודעה נרטיבית */}
+              <NarrativeMessage
+                message={narrativeMessage}
+                type={narrativeMessageType}
+                isVisible={showNarrativeMessage}
+              />
+
+              {/* סרגל התקדמות הקלאסי */}
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <ProgressBar
                   currentLevel={currentLevelIndex + 1}
@@ -279,6 +328,13 @@ export default function Game() {
             >
               <div className="text-6xl mb-4">🎉</div>
               <h2 className="text-4xl font-bold text-green-600">משימה הושלמה!</h2>
+
+              {/* אינדיקטור הצלה סופי */}
+              <RescueProgressIndicator
+                correctAnswers={correctAnswers}
+                totalLevels={totalLevels}
+                isCompleted={true}
+              />
 
               <div className="bg-green-50 rounded-lg p-6 space-y-4">
                 <h3 className="text-2xl font-bold text-green-900">סטטיסטיקות:</h3>
